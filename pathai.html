@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PathAI — AI-маршрут поступления</title>
+<meta name="description" content="Подбор университетов и персональный Roadmap поступления за 2 минуты">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body{font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+  .step{display:none}
+  .step.active{display:block;animation:stepIn .5s cubic-bezier(.2,.8,.2,1)}
+  @keyframes stepIn{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+  @keyframes grow{from{width:0}}
+  @keyframes dash{from{stroke-dasharray:0 400}}
+  @keyframes flash{0%{box-shadow:0 0 0 0 rgba(99,102,241,.55);background:#eef2ff}100%{box-shadow:0 0 0 16px rgba(99,102,241,0);background:#fff}}
+  @keyframes pop{0%{transform:scale(.96)}50%{transform:scale(1.02)}100%{transform:scale(1)}}
+  @keyframes fall{to{transform:translateY(110vh) rotate(540deg);opacity:.2}}
+  @keyframes toastIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @keyframes pulse2{0%,100%{opacity:1}50%{opacity:.35}}
+  .grow-bar{animation:grow .9s cubic-bezier(.2,.8,.2,1)}
+  .ring-anim{animation:dash 1s ease}
+  .flash{animation:flash 1.3s ease}
+  .pop{animation:pop .5s ease}
+  .confetti-piece{position:fixed;top:-30px;animation:fall 1.9s ease-in forwards;pointer-events:none}
+  .toast{animation:toastIn .3s ease;transition:opacity .4s}
+  .spinner{width:48px;height:48px;border-radius:50%;border:4px solid #e0e7ff;border-top-color:#4f46e5;animation:spin .8s linear infinite}
+  .live-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#10b981;animation:pulse2 1.4s infinite}
+
+  .btn-primary{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;padding:.8rem 1.4rem;border-radius:.9rem;font-weight:600;color:#fff;background:linear-gradient(135deg,#4f46e5,#7c3aed);box-shadow:0 10px 25px -8px rgba(79,70,229,.55);transition:.2s;cursor:pointer;border:0}
+  .btn-primary:hover{transform:translateY(-2px);box-shadow:0 14px 30px -8px rgba(79,70,229,.6)}
+  .btn-primary:disabled{opacity:.5;pointer-events:none}
+  .btn-ghost{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;padding:.75rem 1.2rem;border-radius:.9rem;font-weight:600;color:#334155;background:#fff;border:1px solid #e2e8f0;transition:.2s;cursor:pointer}
+  .btn-ghost:hover{border-color:#a5b4fc;color:#4338ca;background:#f8faff}
+  .card{background:#fff;border:1px solid #e2e8f0;border-radius:1.25rem;box-shadow:0 1px 2px rgba(15,23,42,.04),0 12px 32px -14px rgba(15,23,42,.12)}
+  .field{width:100%;border:1px solid #cbd5e1;border-radius:.75rem;padding:.7rem .9rem;background:#fff;font-size:.95rem;outline:none;transition:.15s;color:#0f172a}
+  .field:focus{border-color:#6366f1;box-shadow:0 0 0 4px rgba(99,102,241,.15)}
+  .label{display:block;font-size:.8rem;font-weight:600;color:#475569;margin-bottom:.35rem}
+  .grad-text{background:linear-gradient(90deg,#4f46e5,#c026d3);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .chip{display:inline-flex;align-items:center;gap:.25rem;padding:.25rem .6rem;border-radius:999px;background:#f1f5f9;color:#334155;font-size:.75rem;font-weight:600}
+  .delta{font-size:.72rem;font-weight:700;padding:.1rem .45rem;border-radius:999px;display:inline-block}
+  .delta.up{background:#dcfce7;color:#15803d}.delta.down{background:#ffe4e6;color:#be123c}.delta.new{background:#ede9fe;color:#6d28d9}
+  .rank{width:2.2rem;height:2.2rem;border-radius:.8rem;display:grid;place-items:center;font-weight:800;color:#fff;background:linear-gradient(135deg,#4f46e5,#c026d3);flex:none}
+  .stepbtn{display:flex;align-items:center;gap:.5rem;padding:.3rem .8rem .3rem .3rem;border-radius:999px;font-size:.85rem;font-weight:600;color:#64748b;transition:.2s;background:transparent;border:0;cursor:pointer}
+  .stepbtn .stepnum{width:1.7rem;height:1.7rem;border-radius:999px;display:grid;place-items:center;background:#e2e8f0;color:#475569;font-size:.8rem;transition:.2s}
+  .stepbtn.current{color:#4338ca;background:#eef2ff}
+  .stepbtn.current .stepnum{background:#4f46e5;color:#fff;box-shadow:0 0 0 4px rgba(99,102,241,.2)}
+  .stepbtn.done .stepnum{background:#10b981;color:#fff}
+  .stepbtn:disabled{cursor:not-allowed;opacity:.5}
+  .cmpbtn{padding:.45rem .8rem;border-radius:.7rem;border:1px solid #e2e8f0;background:#fff;font-size:.8rem;font-weight:600;color:#475569;cursor:pointer;transition:.15s}
+  .cmpbtn:hover{border-color:#a5b4fc}
+  .cmpbtn.on{background:#eef2ff;border-color:#818cf8;color:#4338ca}
+  .check{width:1.6rem;height:1.6rem;flex:none;border-radius:50%;border:2px solid #cbd5e1;background:#fff;cursor:pointer;display:grid;place-items:center;transition:.2s;color:#fff;font-size:.85rem;font-weight:800}
+  .check:hover{border-color:#6366f1}
+  .check.on{background:#10b981;border-color:#10b981}
+  .check.on::after{content:"✓"}
+  input[type=range]{height:1.5rem}
+  @media print{header,#toasts,.no-print{display:none!important}.step{display:none!important}#step-4{display:block!important}}
+</style>
+</head>
+<body class="min-h-screen bg-slate-50 text-slate-800 antialiased">
+
+<div class="pointer-events-none fixed inset-0 -z-10 overflow-hidden no-print">
+  <div class="absolute -top-40 -left-32 w-[32rem] h-[32rem] rounded-full bg-indigo-200/50 blur-3xl"></div>
+  <div class="absolute top-40 -right-32 w-[28rem] h-[28rem] rounded-full bg-fuchsia-200/40 blur-3xl"></div>
+</div>
+
+<header class="sticky top-0 z-40 bg-white/85 backdrop-blur border-b border-slate-200">
+  <div class="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between gap-4">
+    <button data-action="goto" data-step="1" class="flex items-center gap-2 font-extrabold text-lg">
+      <span class="grid place-items-center w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-600 to-fuchsia-600 text-white">🎓</span> PathAI
+    </button>
+    <nav id="stepper" class="hidden md:flex items-center gap-1" aria-label="Шаги"></nav>
+    <div id="stepMobile" class="md:hidden text-sm font-semibold text-slate-600"></div>
+  </div>
+  <div class="h-1 bg-slate-100"><div id="topBar" class="h-1 bg-gradient-to-r from-indigo-500 via-violet-500 to-fuchsia-500 transition-all duration-700" style="width:25%"></div></div>
+</header>
+
+<main class="max-w-6xl mx-auto px-4 py-8">
+
+  <!-- ========== STEP 1 ========== -->
+  <section id="step-1" class="step" data-step="1">
+    <div class="grid lg:grid-cols-2 gap-10 items-center py-4 lg:py-12">
+      <div>
+        <span class="inline-flex items-center gap-2 rounded-full bg-indigo-50 text-indigo-700 text-xs font-semibold px-3 py-1 ring-1 ring-indigo-100">✨ AI-маршрут поступления</span>
+        <h1 class="mt-5 text-4xl sm:text-5xl font-extrabold tracking-tight leading-[1.1]">Найди свой университет и получи <span class="grad-text">персональный план поступления</span></h1>
+        <p class="mt-5 text-lg text-slate-600 max-w-xl">Ответьте на несколько вопросов — AI сопоставит ваш профиль с требованиями вузов, объяснит, почему они подходят, и построит пошаговый Roadmap с экзаменами, документами и дедлайнами.</p>
+        <div class="mt-8 flex flex-wrap gap-3">
+          <button data-action="start" class="btn-primary text-base">Начать подбор →</button>
+          <button data-action="demo" class="btn-ghost text-base">▶ Смотреть демо-результат</button>
+        </div>
+        <div class="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-sm text-slate-500">
+          <span>✓ Без регистрации</span><span>✓ Занимает ~2 минуты</span><span>✓ Бесплатно</span>
+        </div>
+      </div>
+      <div class="relative">
+        <div class="card p-5 sm:p-6 rotate-1 hover:rotate-0 transition">
+          <div class="flex items-center justify-between">
+            <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Пример рекомендации</div>
+            <span class="text-xs font-semibold text-emerald-700 bg-emerald-50 rounded-full px-2 py-0.5">Высокие шансы</span>
+          </div>
+          <div class="mt-3 flex items-center gap-4">
+            <div class="rank">1</div>
+            <div class="flex-1"><div class="font-bold">🇩🇪 TU München</div><div class="text-sm text-slate-500">IT · Мюнхен · ≈ $13 500/год</div></div>
+            <div class="text-3xl font-extrabold grad-text">92%</div>
+          </div>
+          <div class="mt-4 h-2 rounded-full bg-slate-100 overflow-hidden"><div class="h-2 w-[92%] rounded-full bg-gradient-to-r from-indigo-500 to-fuchsia-500"></div></div>
+          <ul class="mt-4 space-y-1.5 text-sm text-slate-600">
+            <li>✅ Сильная программа по вашему направлению</li>
+            <li>✅ Бюджет укладывается в ваши ожидания</li>
+            <li>✅ IELTS и SAT соответствуют требованиям</li>
+          </ul>
+          <div class="mt-4 rounded-xl bg-indigo-50 p-3 text-sm text-indigo-800">🧭 Следующий шаг: подготовить документы до 31 мая</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid sm:grid-cols-3 gap-4 mt-6">
+      <div class="card p-5"><div class="text-2xl">🎯</div><h3 class="mt-2 font-bold">Умный подбор</h3><p class="mt-1 text-sm text-slate-600">Учитываем направление, бюджет, страну, экзамены и аттестат. Каждый вариант — с объяснением.</p></div>
+      <div class="card p-5"><div class="text-2xl">⚖️</div><h3 class="mt-2 font-bold">Сравнение вариантов</h3><p class="mt-1 text-sm text-slate-600">Два вуза бок о бок: стоимость, требования, шансы, дедлайны и стипендии.</p></div>
+      <div class="card p-5"><div class="text-2xl">🗺️</div><h3 class="mt-2 font-bold">Персональный Roadmap</h3><p class="mt-1 text-sm text-slate-600">Пошаговый план с датами и кнопкой «Отметить прогресс» — всегда ясно, что делать дальше.</p></div>
+    </div>
+    <div class="mt-6 grid grid-cols-3 gap-4 text-center">
+      <div class="card p-4"><div id="statU" class="text-2xl font-extrabold grad-text">13</div><div class="text-xs text-slate-500">университетов в базе</div></div>
+      <div class="card p-4"><div id="statC" class="text-2xl font-extrabold grad-text">11</div><div class="text-xs text-slate-500">стран</div></div>
+      <div class="card p-4"><div class="text-2xl font-extrabold grad-text">10</div><div class="text-xs text-slate-500">шагов плана</div></div>
+    </div>
+  </section>
+
+  <!-- ========== STEP 2 ========== -->
+  <section id="step-2" class="step" data-step="2">
+    <div class="mb-6">
+      <h2 class="text-3xl font-extrabold tracking-tight">Анкета профиля</h2>
+      <p class="text-slate-600 mt-2">Меняйте параметры — справа прогноз AI пересчитывается в реальном времени.</p>
+    </div>
+    <div class="grid lg:grid-cols-3 gap-6 items-start">
+      <form id="profileForm" class="card p-5 sm:p-7 lg:col-span-2" novalidate autocomplete="off">
+        <div class="mb-5">
+          <div class="label">Быстрый старт — демо-профили</div>
+          <div class="flex flex-wrap gap-2">
+            <button type="button" data-action="preset" data-i="0" class="cmpbtn">💻 IT · $12k · любая страна</button>
+            <button type="button" data-action="preset" data-i="1" class="cmpbtn">📈 Бизнес · США · $45k</button>
+            <button type="button" data-action="preset" data-i="2" class="cmpbtn">🧬 Медицина · $15k · 10 класс</button>
+          </div>
+        </div>
+        <div class="grid sm:grid-cols-2 gap-5">
+          <div><label class="label" for="f-grade">Класс / возраст</label><select id="f-grade" class="field"></select></div>
+          <div><label class="label" for="f-field">Интересующее направление</label><select id="f-field" class="field"></select></div>
+          <div><label class="label" for="f-country">Желаемая страна</label><select id="f-country" class="field"></select></div>
+          <div><label class="label" for="f-ielts">Результат IELTS</label><select id="f-ielts" class="field"></select></div>
+          <div>
+            <label class="label" for="f-sat">SAT (400–1600, необязательно)</label>
+            <input id="f-sat" type="number" inputmode="numeric" min="400" max="1600" step="10" placeholder="Например, 1250" class="field">
+            <p id="err-sat" class="hidden text-xs text-rose-600 mt-1">Введите значение от 400 до 1600</p>
+          </div>
+          <div>
+            <div class="flex items-center justify-between"><label class="label" for="f-gpa">Средний балл аттестата</label><output id="o-gpa" class="text-sm font-bold text-indigo-600"></output></div>
+            <input id="f-gpa" type="range" min="60" max="100" step="1" class="w-full accent-indigo-600">
+            <div class="flex justify-between text-xs text-slate-400"><span>60%</span><span>100%</span></div>
+          </div>
+          <div class="sm:col-span-2">
+            <div class="flex items-center justify-between"><label class="label" for="f-budget">Бюджет в год (обучение + проживание)</label><output id="o-budget" class="text-sm font-bold text-indigo-600"></output></div>
+            <input id="f-budget" type="range" min="2000" max="70000" step="1000" class="w-full accent-indigo-600">
+            <div class="flex justify-between text-xs text-slate-400"><span>$2 000</span><span>$70 000</span></div>
+          </div>
+        </div>
+        <div class="mt-7 flex flex-wrap gap-3 justify-between">
+          <button type="button" data-action="goto" data-step="1" class="btn-ghost">← Назад</button>
+          <button type="submit" id="submitBtn" class="btn-primary">✨ Подобрать университеты</button>
+        </div>
+      </form>
+
+      <aside class="card p-5 lg:sticky lg:top-24">
+        <div class="flex items-center gap-2 text-sm font-semibold"><span class="live-dot"></span> Live-прогноз AI</div>
+        <div class="mt-4 flex items-center justify-between text-sm">
+          <span class="text-slate-500">Готовность профиля</span><span id="liveReady" class="font-bold text-indigo-600">—</span>
+        </div>
+        <div class="mt-1 h-2 rounded-full bg-slate-100 overflow-hidden"><div id="liveReadyBar" class="h-2 rounded-full bg-gradient-to-r from-indigo-500 to-fuchsia-500 transition-all duration-500" style="width:0%"></div></div>
+        <div class="mt-5 text-xs font-semibold text-slate-400 uppercase tracking-wider">Топ-3 сейчас</div>
+        <div id="liveList" class="mt-2 space-y-2"></div>
+        <p class="mt-4 text-xs text-slate-400">Нажмите «Подобрать», чтобы увидеть полный разбор и Roadmap.</p>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ========== STEP 3 ========== -->
+  <section id="step-3" class="step" data-step="3">
+    <div class="flex flex-wrap items-end justify-between gap-3 mb-6">
+      <div>
+        <h2 class="text-3xl font-extrabold tracking-tight">Диагностика и рекомендации</h2>
+        <p class="text-slate-600 mt-2">Профиль проанализирован. Меняйте параметры ниже — результаты пересчитываются мгновенно.</p>
+      </div>
+      <button data-action="edit" class="btn-ghost">✎ Изменить анкету</button>
+    </div>
+    <div class="grid lg:grid-cols-3 gap-6 items-start">
+      <aside class="lg:col-span-1"><div id="profileSummary" class="card p-5"></div></aside>
+      <div class="lg:col-span-2 space-y-5">
+        <div class="card p-5">
+          <div class="flex items-center gap-2 text-sm font-bold mb-3">🎛️ Быстрая настройка <span class="text-xs font-medium text-slate-400">— смотрите, как меняется выдача</span></div>
+          <div class="grid sm:grid-cols-2 gap-4">
+            <div><div class="flex justify-between"><label class="label" for="q-budget">Бюджет в год</label><output id="o-qbudget" class="text-sm font-bold text-indigo-600"></output></div>
+              <input id="q-budget" type="range" min="2000" max="70000" step="1000" class="w-full accent-indigo-600"></div>
+            <div><label class="label" for="q-country">Страна</label><select id="q-country" class="field"></select></div>
+            <div><label class="label" for="q-field">Направление</label><select id="q-field" class="field"></select></div>
+            <div><label class="label" for="q-ielts">IELTS</label><select id="q-ielts" class="field"></select></div>
+          </div>
+        </div>
+        <div id="changeBanner" class="hidden"></div>
+        <div id="recoCards" class="space-y-4"></div>
+        <div id="compareBlock" class="card p-5"></div>
+        <div class="flex flex-wrap justify-between gap-3">
+          <button data-action="edit" class="btn-ghost">← К анкете</button>
+          <button id="toRoadmap" data-action="to-roadmap" class="btn-primary">Построить Roadmap →</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== STEP 4 ========== -->
+  <section id="step-4" class="step" data-step="4"><div id="roadmapRoot"></div></section>
+
+  <p class="mt-12 text-center text-xs text-slate-400 no-print">Демо-данные ориентировочные — точные требования и сроки проверяйте на сайтах университетов. Hackathon MVP · PathAI</p>
+</main>
+
+<div id="overlay" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+  <div class="card p-8 w-full max-w-md text-center">
+    <div class="spinner mx-auto"></div>
+    <h3 class="mt-5 text-xl font-bold">AI анализирует ваш профиль</h3>
+    <p id="ovText" class="mt-2 text-slate-600 h-6 text-sm"></p>
+    <div class="mt-5 h-2 rounded-full bg-slate-100 overflow-hidden"><div id="ovBar" class="h-2 rounded-full bg-gradient-to-r from-indigo-500 to-fuchsia-500" style="width:0%;transition:width .4s"></div></div>
+  </div>
+</div>
+<div id="toasts" class="fixed bottom-4 inset-x-0 z-[70] flex flex-col items-center gap-2 pointer-events-none px-4"></div>
+<div id="confetti" class="pointer-events-none fixed inset-0 z-[60] overflow-hidden"></div>
+
+<script>
+(() => {
+'use strict';
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const usd = n => '$' + Math.round(n).toLocaleString('ru-RU');
+const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+
+/* ---------- ДАННЫЕ ---------- */
+const FIELDS = {
+  cs:{name:'IT и Computer Science',icon:'💻'}, eng:{name:'Инженерия',icon:'⚙️'},
+  biz:{name:'Бизнес и экономика',icon:'📈'}, med:{name:'Медицина и биология',icon:'🧬'},
+  sci:{name:'Естественные науки',icon:'🔬'}, hum:{name:'Гуманитарные науки и дизайн',icon:'🎨'}
+};
+const GRADES = {'9':'9 класс (14–15 лет)','10':'10 класс (15–16 лет)','11':'11 класс (16–17 лет)','gap':'Выпускник / gap year (17+)'};
+const YEARS = {'9':2,'10':1,'11':0,'gap':0};
+const ALL = ['cs','eng','biz','med','sci','hum'];
+
+const UNIS = [
+ {id:'nu',name:'Nazarbayev University',short:'NU',country:'Казахстан',flag:'🇰🇿',city:'Астана',fields:['cs','eng','med','biz','sci','hum'],tuition:8000,living:4000,ielts:6.0,sat:1100,gpa:85,prestige:8,dl:{m:3,d:1},lang:'EN',scholarship:'Госгранты и гранты вуза (до 100% обучения)',why:'Обучение на английском, крупные гранты и сильная исследовательская среда — рядом с домом.'},
+ {id:'kbtu',name:'Kazakh-British Technical University',short:'KBTU',country:'Казахстан',flag:'🇰🇿',city:'Алматы',fields:['cs','eng','biz'],tuition:4000,living:3000,ielts:5.5,sat:null,gpa:75,prestige:6,dl:{m:8,d:1},lang:'EN / RU',scholarship:'Госгранты и скидки за баллы ЕНТ и олимпиады',why:'Практико-ориентированная IT-программа, самый доступный бюджет и связи с индустрией.'},
+ {id:'tum',name:'TU München',short:'TUM',country:'Германия',flag:'🇩🇪',city:'Мюнхен',fields:['cs','eng','sci'],tuition:500,living:13000,ielts:6.5,sat:1300,gpa:90,prestige:10,dl:{m:5,d:31},lang:'EN / DE',scholarship:'DAAD и фонды; обучение почти бесплатное',why:'Один из сильнейших технических вузов Европы с почти бесплатным обучением.'},
+ {id:'rwth',name:'RWTH Aachen University',short:'RWTH',country:'Германия',flag:'🇩🇪',city:'Аахен',fields:['cs','eng','sci'],tuition:600,living:11500,ielts:6.5,sat:null,gpa:88,prestige:9,dl:{m:7,d:15},lang:'EN / DE',scholarship:'DAAD и Deutschlandstipendium',why:'Инженерная школа мирового уровня и сильные связи с немецкой промышленностью.'},
+ {id:'wut',name:'Warsaw University of Technology',short:'WUT',country:'Польша',flag:'🇵🇱',city:'Варшава',fields:['cs','eng','sci'],tuition:3500,living:6500,ielts:6.0,sat:null,gpa:75,prestige:6,dl:{m:6,d:30},lang:'EN / PL',scholarship:'Стипендии NAWA и скидки за результаты',why:'Недорогое техническое образование в ЕС с англоязычными программами.'},
+ {id:'kaist',name:'KAIST',short:'KAIST',country:'Южная Корея',flag:'🇰🇷',city:'Тэджон',fields:['cs','eng','sci'],tuition:2500,living:6500,ielts:6.0,sat:null,gpa:88,prestige:9,dl:{m:11,d:15},lang:'EN',scholarship:'Стипендии KAIST и GKS для иностранцев',why:'Топ-исследовательский вуз Азии по STEM с щедрыми стипендиями для иностранцев.'},
+ {id:'nus',name:'National University of Singapore',short:'NUS',country:'Сингапур',flag:'🇸🇬',city:'Сингапур',fields:['cs','eng','biz','sci','med'],tuition:20000,living:12000,ielts:6.5,sat:1400,gpa:92,prestige:10,dl:{m:2,d:28},lang:'EN',scholarship:'Мерит-стипендии NUS',why:'Лидер Азии с сильнейшим карьерным треком в IT и бизнесе.'},
+ {id:'uoft',name:'University of Toronto',short:'UofT',country:'Канада',flag:'🇨🇦',city:'Торонто',fields:['cs','eng','biz','med','sci','hum'],tuition:42000,living:15000,ielts:6.5,sat:null,gpa:90,prestige:9,dl:{m:1,d:15},lang:'EN',scholarship:'Lester B. Pearson Scholarship и гранты факультетов',why:'Топ-университет Северной Америки с широким выбором программ и co-op практикой.'},
+ {id:'manc',name:'University of Manchester',short:'UoM',country:'Великобритания',flag:'🇬🇧',city:'Манчестер',fields:['cs','eng','biz','med','sci','hum'],tuition:29000,living:14000,ielts:6.5,sat:null,gpa:88,prestige:8,dl:{m:1,d:29},lang:'EN',scholarship:'Мерит-стипендии для международных студентов',why:'Вуз группы Russell Group с сильным карьерным сервисом и 3-летним бакалавриатом.'},
+ {id:'asu',name:'Arizona State University',short:'ASU',country:'США',flag:'🇺🇸',city:'Темпе',fields:['cs','eng','biz','med','sci','hum'],tuition:32000,living:13000,ielts:6.0,sat:null,gpa:80,prestige:7,dl:{m:2,d:1},lang:'EN',scholarship:'Мерит-стипендии по GPA для иностранцев',why:'Гибкие требования, огромный выбор программ и мерит-стипендии для иностранцев.'},
+ {id:'bocconi',name:'Bocconi University',short:'Bocconi',country:'Италия',flag:'🇮🇹',city:'Милан',fields:['biz','hum'],tuition:14000,living:12000,ielts:6.5,sat:1300,gpa:88,prestige:8,dl:{m:1,d:10},lang:'EN / IT',scholarship:'Bocconi Merit Awards и need-based aid',why:'Один из ведущих европейских вузов в бизнесе и экономике.'},
+ {id:'charles',name:'Charles University',short:'Charles',country:'Чехия',flag:'🇨🇿',city:'Прага',fields:['med','sci','hum','cs'],tuition:7000,living:8000,ielts:6.0,sat:null,gpa:82,prestige:7,dl:{m:4,d:30},lang:'EN / CZ',scholarship:'Правительственные стипендии Чехии и скидки',why:'Старейший вуз Центральной Европы с доступным медицинским образованием.'},
+ {id:'koc',name:'Koç University',short:'Koç',country:'Турция',flag:'🇹🇷',city:'Стамбул',fields:['biz','eng','cs','hum','med'],tuition:20000,living:7000,ielts:6.0,sat:1200,gpa:85,prestige:7,dl:{m:3,d:15},lang:'EN',scholarship:'Стипендии до 100% по итогам поступления',why:'Ведущий частный вуз Турции с обучением на английском и крупными стипендиями.'}
+];
+const COUNTRIES = [...new Set(UNIS.map(u => u.country))];
+const FLAG = Object.fromEntries(UNIS.map(u => [u.country, u.flag]));
+
+const PRESETS = [
+  {grade:'11',field:'cs', country:'any',   budget:12000,ielts:6.5,sat:1250,gpa:88},
+  {grade:'11',field:'biz',country:'США',   budget:45000,ielts:7,  sat:1380,gpa:92},
+  {grade:'10',field:'med',country:'any',   budget:15000,ielts:6,  sat:0,   gpa:85}
+];
+
+/* ---------- СОСТОЯНИЕ ---------- */
+const state = {
+  step:1, maxStep:1, profile:{...PRESETS[0]}, shownProfile:null, current:null, baseline:null,
+  cmp:[], target:null, done:{}, busy:false, satBad:false, liveTop:null, liveScores:null
+};
+const KEY = 'pathai_v1';
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify({profile:state.profile, done:state.done})); }catch(e){} }
+function load(){
+  try{
+    const s = JSON.parse(localStorage.getItem(KEY) || 'null');
+    if(s){ if(s.profile) state.profile = normalize({...state.profile, ...s.profile}); if(s.done && typeof s.done === 'object') state.done = s.done; }
+  }catch(e){}
+}
+function normalize(p){
+  const o = {...p};
+  if(!GRADES[o.grade]) o.grade = '11';
+  if(!FIELDS[o.field]) o.field = 'cs';
+  if(o.country !== 'any' && !COUNTRIES.includes(o.country)) o.country = 'any';
+  o.budget = clamp(+o.budget || 12000, 2000, 70000);
+  o.ielts = (+o.ielts >= 5 && +o.ielts <= 9) ? +o.ielts : 0;
+  o.sat = (+o.sat >= 400 && +o.sat <= 1600) ? Math.round(+o.sat) : 0;
+  o.gpa = clamp(+o.gpa || 85, 60, 100);
+  return o;
+}
+
+/* ---------- ДАТЫ ---------- */
+const today = () => { const d = new Date(); d.setHours(0,0,0,0); return d; };
+const addDays = (d,n) => { const x = new Date(d); x.setDate(x.getDate()+n); return x; };
+const daysBetween = (a,b) => Math.round((b-a)/86400000);
+const fmtDate = d => d.toLocaleDateString('ru-RU',{day:'numeric',month:'short',year:'numeric'});
+function nextDeadline(u, plus){
+  const t = today(); let d = new Date(t.getFullYear(), u.dl.m-1, u.dl.d);
+  if(d <= t) d = new Date(t.getFullYear()+1, u.dl.m-1, u.dl.d);
+  d.setFullYear(d.getFullYear() + plus); return d;
+}
+function leftText(d){
+  const n = daysBetween(today(), d);
+  if(n <= 0) return 'сегодня'; if(n === 1) return 'завтра';
+  if(n <= 45) return `через ${n} дн.`; if(n < 365) return `через ${Math.round(n/30.4)} мес.`;
+  return `через ${(n/365).toFixed(1)} г.`;
+}
+
+/* ---------- ДВИЖОК ПОДБОРА ---------- */
+function score(u, p){
+  const cost = u.tuition + u.living, good = [], warn = [], parts = {};
+  const F = FIELDS[p.field].name;
+  if(u.fields.includes(p.field)){ parts.field = 30; good.push(`Есть сильные программы по направлению «${F}»`); }
+  else { parts.field = 6; warn.push(`Профильных программ по направлению «${F}» здесь мало — проверьте каталог`); }
+
+  if(cost <= p.budget){
+    parts.budget = 25;
+    good.push(`Полный бюджет ≈ ${usd(cost)}/год укладывается в ваши ${usd(p.budget)}` + (p.budget-cost >= 1000 ? ` (запас ${usd(p.budget-cost)})` : ''));
+  } else {
+    const over = cost - p.budget;
+    parts.budget = 25 * Math.max(0, 1 - over/p.budget*1.2);
+    warn.push(`Бюджет превышен на ${usd(over)}/год — потребуется грант: ${u.scholarship}`);
+  }
+
+  if(p.country === 'any') parts.country = 12;
+  else if(u.country === p.country){ parts.country = 15; good.push(`Страна совпадает с вашим выбором: ${u.flag} ${u.country}`); }
+  else { parts.country = 2; warn.push(`Другая страна (${u.country}) — показываем как сильную альтернативу`); }
+
+  let ie;
+  if(!p.ielts){ ie = 5; warn.push(`Нет результата IELTS — вузу нужен ${u.ielts}+`); }
+  else if(p.ielts >= u.ielts){ ie = 10; good.push(`IELTS ${p.ielts} покрывает требование ${u.ielts}`); }
+  else { ie = Math.max(0, 10 - (u.ielts - p.ielts)/0.5*3); warn.push(`Нужно подтянуть IELTS с ${p.ielts} до ${u.ielts}`); }
+
+  let sa;
+  if(u.sat === null){ sa = p.sat >= 1200 ? 10 : 8; good.push('SAT не обязателен — упор на аттестат и портфолио'); }
+  else if(!p.sat){ sa = 4; warn.push(`Нужен SAT ${u.sat}+ (результата пока нет)`); }
+  else if(p.sat >= u.sat){ sa = 10; good.push(`SAT ${p.sat} ≥ требуемых ${u.sat}`); }
+  else { sa = 10*Math.pow(p.sat/u.sat, 4); warn.push(`SAT ${p.sat} ниже ориентира ${u.sat}`); }
+  parts.exam = ie + sa;
+
+  if(p.gpa >= u.gpa){ parts.gpa = 10; good.push(`Средний балл ${p.gpa}% выше ориентира ~${u.gpa}%`); }
+  else { parts.gpa = 10*Math.pow(p.gpa/u.gpa, 3); warn.push(`Балл аттестата ${p.gpa}% ниже ориентира ~${u.gpa}% — усильте портфолио`); }
+
+  const total = Math.min(98, Math.round(parts.field + parts.budget + parts.country + parts.exam + parts.gpa));
+  const r = ie + sa + parts.gpa;
+  const chance = r >= 26 ? {k:3,label:'Высокие шансы',cls:'bg-emerald-50 text-emerald-700 ring-emerald-200'}
+               : r >= 19 ? {k:2,label:'Реалистично',cls:'bg-amber-50 text-amber-700 ring-amber-200'}
+                         : {k:1,label:'Амбициозно',cls:'bg-rose-50 text-rose-700 ring-rose-200'};
+  return {u, total, parts, good, warn, chance, cost, alt: p.country !== 'any' && u.country !== p.country};
+}
+const compute = p => UNIS.map(u => score(u, p)).sort((a,b) => b.total - a.total || b.u.prestige - a.u.prestige);
+
+function analyze(p){
+  const gp = clamp((p.gpa-60)/40), ie = p.ielts ? clamp((p.ielts-4.5)/3) : .25, sa = p.sat ? clamp((p.sat-800)/650) : .25;
+  const readiness = Math.round((gp*.4 + ie*.35 + sa*.25)*100);
+  const strengths = [], gaps = [];
+  p.gpa >= 85 ? strengths.push(`Сильный аттестат (${p.gpa}%)`) : gaps.push(`Повысить средний балл (сейчас ${p.gpa}%)`);
+  if(!p.ielts) gaps.push('Сдать IELTS — он нужен всем вузам из списка');
+  else p.ielts >= 6.5 ? strengths.push(`IELTS ${p.ielts} — открывает большинство вузов`) : gaps.push(`Довести IELTS до 6.5+ (сейчас ${p.ielts})`);
+  if(!p.sat) gaps.push('SAT нужен части вузов (TUM, NUS, Bocconi, Koç)');
+  else p.sat >= 1300 ? strengths.push(`SAT ${p.sat} — конкурентный балл`) : gaps.push(`Поднять SAT до 1300+ (сейчас ${p.sat})`);
+  if(p.budget >= 30000) strengths.push('Широкий бюджет — доступны почти все страны');
+  else if(p.budget < 8000) gaps.push('Ограниченный бюджет — делайте ставку на гранты и KZ / PL / DE / KR');
+  else strengths.push('Сбалансированный бюджет для Европы и Азии');
+  return {readiness, strengths, gaps};
+}
+
+/* ---------- РОАДМАП ---------- */
+const CAT = {
+  plan:['🧭','Планирование','bg-indigo-50 text-indigo-700'], exam:['📝','Экзамены','bg-amber-50 text-amber-700'],
+  docs:['📄','Документы','bg-sky-50 text-sky-700'], profile:['🏆','Портфолио','bg-emerald-50 text-emerald-700'],
+  money:['💰','Финансы','bg-pink-50 text-pink-700'], apply:['🚀','Подача','bg-violet-50 text-violet-700'],
+  move:['✈️','Переезд','bg-teal-50 text-teal-700']
+};
+const PORT = {
+  cs:'2–3 проекта на GitHub, хакатоны и олимпиады по информатике',
+  eng:'проекты по робототехнике/физике, олимпиады, мини-исследование',
+  biz:'бизнес-проект или кейс-чемпионаты, волонтёрство, лидерская роль',
+  med:'олимпиады по биологии/химии, волонтёрство в клинике, исследовательская работа',
+  sci:'исследовательский проект, профильные олимпиады, научные конкурсы',
+  hum:'портфолио работ и эссе, дебаты, публикации, творческие проекты'
+};
+function buildRoadmap(u, p){
+  const t0 = today(), yrs = YEARS[p.grade], dl = nextDeadline(u, yrs), L = [];
+  const add = (key,cat,title,desc,o) => L.push({key,cat,title,desc,...o});
+  add('shortlist','plan',`Зафиксировать цель: ${u.short} + запасные варианты`,`Выберите 1 целевой, 1 реалистичный и 1 страховой вуз. Изучите страницу программы ${u.name} и сверьте требования.`,{abs:3});
+  if(yrs > 0) add('early','profile','Ранний старт: английский и профильные предметы',`До подачи ≈ ${yrs} г. — прокачайте английский (цель IELTS ${u.ielts}+), выберите профильные предметы и начните собирать достижения.`,{abs:10});
+  if(!p.ielts || p.ielts < u.ielts)
+    add('ielts','exam',`Подготовка и сдача IELTS до ${u.ielts}+`,`Сейчас: ${p.ielts || 'нет результата'}. Запишитесь на экзамен минимум за 6–8 недель до подачи; результат действует 2 года.`,{off:-150});
+  else
+    add('ielts','exam','Актуализировать сертификат IELTS',`Ваш результат ${p.ielts} покрывает требование ${u.ielts}. Проверьте срок действия (2 года) и подготовьте скан.`,{off:-150});
+  if(u.sat !== null){
+    if(p.sat < u.sat) add('sat','exam',`Подготовка к SAT: цель ${u.sat}+`,`Сейчас: ${p.sat || 'нет результата'}. 2–3 пробных теста в месяц (Bluebook / Khan Academy), затем регистрация на ближайшую дату College Board.`,{off:-115});
+    else add('sat','exam','Отправить официальные результаты SAT',`Ваш SAT ${p.sat} ≥ ${u.sat}. Отправьте score report через College Board в ${u.short}.`,{off:-115});
+  }
+  add('portfolio','profile',`Собрать портфолио: ${FIELDS[p.field].name}`,`Что добавить: ${PORT[p.field]}. Цель — 2–3 сильных подтверждённых достижения.`,{off:-100});
+  add('docs','docs','Документы: аттестат, выписка оценок, перевод',`Закажите перевод на английский и нотариальное заверение/апостиль; уточните формат загрузки на портале ${u.short}.`,{off:-75});
+  add('recs','docs','Рекомендательные письма и CV',`Попросите 2 учителей минимум за 6–8 недель; подготовьте резюме на 1 страницу.`,{off:-60});
+  add('essay','docs','Мотивационное письмо (Personal Statement)',`Черновик → 2 ревью (наставник + AI-помощник) → финал. Свяжите «${FIELDS[p.field].name}» с вашей личной историей и целью.`,{off:-45});
+  add('money','money','Гранты, стипендии и финансовые документы',`${u.scholarship}. Подготовьте подтверждение финансов: полная стоимость ≈ ${usd(u.tuition+u.living)}/год.`,{off:-35});
+  add('apply','apply',`Подать заявку в ${u.short}`,`Заполните форму, загрузите документы, оплатите сбор; сохраните подтверждение и доступ к порталу.`,{off:-7});
+  add('visa','move','Виза, жильё и подготовка к переезду',`После оффера: подтверждение места, виза/резиденция, страховка, общежитие или аренда, билеты.`,{off:60});
+  L.forEach((t,i) => {
+    let d = t.abs !== undefined ? addDays(t0, t.abs) : addDays(dl, t.off);
+    if(t.off !== undefined && t.off < 0){
+      const lower = addDays(t0, 4 + i*3); if(d < lower) d = lower;
+      const cap = addDays(dl, -1); if(d > cap) d = cap;
+    }
+    t.date = d;
+  });
+  L.sort((a,b) => a.date - b.date);
+  return {tasks:L, deadline:dl};
+}
+
+/* ---------- УТИЛИТЫ UI ---------- */
+function toast(msg, type){
+  const el = document.createElement('div');
+  el.className = 'toast pointer-events-auto text-white text-sm px-4 py-2.5 rounded-xl shadow-lg max-w-md ' + (type === 'warn' ? 'bg-rose-600' : 'bg-slate-900');
+  el.textContent = msg; $('#toasts').appendChild(el);
+  setTimeout(() => { el.style.opacity = 0; setTimeout(() => el.remove(), 400); }, 3000);
+}
+function confetti(n = 16){
+  const box = $('#confetti'), em = ['🎉','✨','🎓','⭐','🚀','🎯'];
+  for(let i = 0; i < n; i++){
+    const s = document.createElement('span'); s.textContent = em[i % em.length]; s.className = 'confetti-piece';
+    s.style.left = (Math.random()*100) + 'vw'; s.style.animationDelay = (Math.random()*.4) + 's'; s.style.fontSize = (14 + Math.random()*18) + 'px';
+    box.appendChild(s); setTimeout(() => s.remove(), 2600);
+  }
+}
+function fillSelect(sel, opts){ sel.innerHTML = opts.map(o => `<option value="${o.v}">${o.t}</option>`).join(''); }
+const dispVal = (k, v) => ({
+  grade: GRADES[v], field: FIELDS[v] ? FIELDS[v].name : v, country: v === 'any' ? 'Любая' : v,
+  budget: usd(v), ielts: v ? v : 'нет', sat: v ? v : 'нет', gpa: v + '%'
+}[k]);
+const LBL = {grade:'Класс',field:'Направление',country:'Страна',budget:'Бюджет',ielts:'IELTS',sat:'SAT',gpa:'Балл'};
+const diffProfile = (a, b) => Object.keys(LBL).filter(k => a[k] !== b[k]).map(k => `${LBL[k]}: ${dispVal(k,a[k])} → ${dispVal(k,b[k])}`);
+
+/* ---------- ФОРМА ---------- */
+function outputs(){ $('#o-budget').textContent = usd($('#f-budget').value); $('#o-gpa').textContent = $('#f-gpa').value + '%'; }
+function writeForm(){
+  const p = state.profile;
+  $('#f-grade').value = p.grade; $('#f-field').value = p.field; $('#f-country').value = p.country;
+  $('#f-budget').value = p.budget; $('#f-ielts').value = String(p.ielts); $('#f-sat').value = p.sat || ''; $('#f-gpa').value = p.gpa;
+  $('#err-sat').classList.add('hidden'); state.satBad = false; outputs();
+}
+function readForm(){
+  const raw = $('#f-sat').value.trim(); let sat = 0, bad = false;
+  if(raw !== ''){ const n = +raw; if(Number.isFinite(n) && n >= 400 && n <= 1600) sat = Math.round(n); else bad = true; }
+  $('#err-sat').classList.toggle('hidden', !bad); state.satBad = bad;
+  state.profile = normalize({grade:$('#f-grade').value, field:$('#f-field').value, country:$('#f-country').value,
+    budget:$('#f-budget').value, ielts:$('#f-ielts').value, sat, gpa:$('#f-gpa').value});
+  outputs();
+}
+function writeQuick(){
+  const p = state.profile;
+  $('#q-budget').value = p.budget; $('#q-country').value = p.country; $('#q-field').value = p.field; $('#q-ielts').value = String(p.ielts);
+  $('#o-qbudget').textContent = usd(p.budget);
+}
+function readQuick(){
+  state.profile = normalize({...state.profile, budget:$('#q-budget').value, country:$('#q-country').value, field:$('#q-field').value, ielts:$('#q-ielts').value});
+  $('#o-qbudget').textContent = usd(state.profile.budget);
+}
+
+/* ---------- LIVE-ПРОГНОЗ (шаг 2) ---------- */
+function renderLive(){
+  const p = state.profile, res = compute(p).slice(0,3), a = analyze(p);
+  const prevTop = state.liveTop, prevS = state.liveScores || {};
+  $('#liveList').innerHTML = res.map((r,i) => {
+    const d = prevS[r.u.id] !== undefined ? r.total - prevS[r.u.id] : 0;
+    const flash = (i === 0 && prevTop && prevTop[0] !== r.u.id) ? 'flash' : '';
+    return `<div class="rounded-xl border border-slate-100 p-3 ${flash}">
+      <div class="flex items-center justify-between gap-2"><div class="text-sm font-semibold truncate">${r.u.flag} ${r.u.short}</div>
+      <div class="text-sm font-bold text-indigo-600">${r.total}% ${d ? `<span class="delta ${d>0?'up':'down'}">${d>0?'▲ +':'▼ '}${d}</span>` : ''}</div></div>
+      <div class="mt-2 h-1.5 rounded-full bg-slate-100 overflow-hidden"><div class="h-1.5 rounded-full bg-gradient-to-r from-indigo-500 to-fuchsia-500 transition-all duration-500" style="width:${r.total}%"></div></div></div>`;
+  }).join('');
+  state.liveTop = res.map(r => r.u.id); state.liveScores = Object.fromEntries(res.map(r => [r.u.id, r.total]));
+  $('#liveReady').textContent = a.readiness + '%'; $('#liveReadyBar').style.width = a.readiness + '%';
+}
+
+/* ---------- ПОДБОР / АНАЛИЗ ---------- */
+function runAnalysis(cb){
+  const ov = $('#overlay'), msgs = ['Разбираем анкету…','Сверяем с требованиями университетов…','Считаем бюджет и шансы…','Формируем рекомендации и Roadmap…'];
+  let i = 0; $('#ovText').textContent = msgs[0]; $('#ovBar').style.width = '12%';
+  ov.classList.remove('hidden'); ov.classList.add('flex');
+  const iv = setInterval(() => { i++; if(i < msgs.length){ $('#ovText').textContent = msgs[i]; $('#ovBar').style.width = ((i+1)/msgs.length*100) + '%'; } }, 380);
+  setTimeout(() => { clearInterval(iv); ov.classList.add('hidden'); ov.classList.remove('flex'); cb(); }, 380*msgs.length + 80);
+}
+function submitProfile(next = 3){
+  if(state.busy) return;
+  readForm();
+  if(state.satBad){ $('#f-sat').focus(); toast('Проверьте значение SAT (400–1600)', 'warn'); return; }
+  state.busy = true; $('#submitBtn').disabled = true;
+  runAnalysis(() => {
+    state.busy = false; $('#submitBtn').disabled = false;
+    const had = !!state.current;
+    commit();
+    state.maxStep = Math.max(state.maxStep, next === 4 ? 4 : 3);
+    goStep(next);
+    const t1 = state.current[0];
+    toast(had ? `Результаты обновлены по новой анкете · Топ-1: ${t1.u.short} (${t1.total}%)` : `Готово! Топ-1: ${t1.u.short} — совпадение ${t1.total}%`);
+  });
+}
+function commit(){
+  const prev = state.current, prevP = state.shownProfile;
+  state.current = compute(state.profile);
+  state.shownProfile = {...state.profile};
+  const top = state.current.slice(0,3);
+  state.baseline = prev
+    ? {scores:Object.fromEntries(prev.map(r => [r.u.id, r.total])), top:prev.slice(0,3).map(r => r.u.id), profile:{...prevP}}
+    : {scores:Object.fromEntries(state.current.map(r => [r.u.id, r.total])), top:top.map(r => r.u.id), profile:{...state.profile}};
+  fixSelections(top); save();
+}
+function fixSelections(top){
+  const ids = top.map(r => r.u.id);
+  state.cmp = state.cmp.filter(id => ids.includes(id));
+  ids.forEach(id => { if(state.cmp.length < 2 && !state.cmp.includes(id)) state.cmp.push(id); });
+  if(!state.target || !ids.includes(state.target)) state.target = ids[0];
+}
+function onQuick(){
+  readQuick(); writeForm();
+  state.current = compute(state.profile); state.shownProfile = {...state.profile};
+  fixSelections(state.current.slice(0,3)); save(); renderResults();
+}
+
+/* ---------- РЕНДЕР ШАГА 3 ---------- */
+const BR = [['Направление','field',30],['Бюджет','budget',25],['Страна','country',15],['Экзамены','exam',20],['Аттестат','gpa',10]];
+function breakdown(r){
+  return BR.map(([l,k,m]) => { const pct = Math.round(clamp(r.parts[k]/m)*100);
+    return `<div><div class="flex justify-between text-[11px] text-slate-500"><span>${l}</span><span>${pct}%</span></div>
+    <div class="h-1.5 rounded-full bg-slate-100 overflow-hidden"><div class="grow-bar h-1.5 rounded-full ${pct>=75?'bg-emerald-500':pct>=45?'bg-amber-400':'bg-rose-400'}" style="width:${pct}%"></div></div></div>`; }).join('');
+}
+const li = (arr, icon, cls) => arr.map(s => `<li class="flex gap-2"><span class="${cls}">${icon}</span><span>${s}</span></li>`).join('');
+
+function renderSummary(){
+  const p = state.shownProfile, a = analyze(p), t1 = state.current[0], C = 2*Math.PI*42;
+  const verdict = a.readiness >= 75 ? 'Сильный профиль' : a.readiness >= 55 ? 'Хорошая база' : 'Нужна подготовка';
+  $('#profileSummary').innerHTML = `
+    <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Резюме профиля</div>
+    <div class="mt-3 flex items-center gap-4">
+      <svg viewBox="0 0 100 100" class="w-24 h-24 -rotate-90 flex-none"><circle cx="50" cy="50" r="42" fill="none" stroke="#e2e8f0" stroke-width="9"/>
+        <circle class="ring-anim" cx="50" cy="50" r="42" fill="none" stroke="url(#g1)" stroke-width="9" stroke-linecap="round" stroke-dasharray="${a.readiness/100*C} ${C}"/>
+        <defs><linearGradient id="g1" x1="0" x2="1"><stop offset="0" stop-color="#4f46e5"/><stop offset="1" stop-color="#c026d3"/></linearGradient></defs></svg>
+      <div><div class="text-3xl font-extrabold grad-text">${a.readiness}%</div><div class="text-sm font-semibold">${verdict}</div><div class="text-xs text-slate-500">готовность профиля</div></div>
+    </div>
+    <div class="mt-4 flex flex-wrap gap-1.5">
+      <span class="chip">🎓 ${GRADES[p.grade].split(' (')[0]}</span><span class="chip">${FIELDS[p.field].icon} ${FIELDS[p.field].name}</span>
+      <span class="chip">${p.country === 'any' ? '🌍 Любая страна' : FLAG[p.country] + ' ' + p.country}</span><span class="chip">💰 до ${usd(p.budget)}</span>
+      <span class="chip">IELTS ${p.ielts || '—'}</span><span class="chip">SAT ${p.sat || '—'}</span><span class="chip">Балл ${p.gpa}%</span>
+    </div>
+    <div class="mt-4 text-sm font-semibold text-emerald-700">Сильные стороны</div>
+    <ul class="mt-1 space-y-1 text-sm text-slate-600">${a.strengths.length ? li(a.strengths.slice(0,3),'✓','text-emerald-600 font-bold') : '<li class="text-slate-400">Пока не выявлены</li>'}</ul>
+    <div class="mt-3 text-sm font-semibold text-amber-700">Зоны роста</div>
+    <ul class="mt-1 space-y-1 text-sm text-slate-600">${a.gaps.length ? li(a.gaps.slice(0,3),'▲','text-amber-500') : '<li class="text-slate-400">Критичных пробелов нет</li>'}</ul>
+    <div class="mt-4 rounded-xl bg-indigo-50 p-3 text-sm text-indigo-900">🤖 <b>AI-вывод:</b> лучший вариант — <b>${t1.u.short}</b> (${t1.total}%). ${a.gaps.length ? 'Главное, что стоит усилить: ' + a.gaps[0].toLowerCase() + '.' : 'Профиль готов к подаче.'}</div>`;
+}
+
+function renderCards(){
+  const top = state.current.slice(0,3), bl = state.baseline;
+  $('#recoCards').innerHTML = top.map((r,i) => {
+    const u = r.u, old = bl ? bl.scores[u.id] : undefined, d = old !== undefined ? r.total - old : 0;
+    const isNew = bl && !bl.top.includes(u.id), flash = (d !== 0 || isNew) ? 'flash' : '';
+    const dl = nextDeadline(u, YEARS[state.shownProfile.grade]);
+    const on = state.cmp.includes(u.id);
+    return `<article class="card p-5 ${flash}">
+      <div class="flex items-start gap-3 sm:gap-4">
+        <div class="rank">${i+1}</div>
+        <div class="flex-1 min-w-0">
+          <div class="flex flex-wrap items-center gap-2"><h3 class="text-lg font-bold leading-tight">${u.name}</h3>
+            <span class="text-xs font-semibold px-2 py-0.5 rounded-full ring-1 ${r.chance.cls}">${r.chance.label}</span>
+            ${r.alt ? '<span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">🌍 Альтернатива</span>' : ''}
+            ${isNew ? '<span class="delta new">🆕 Новое в топ-3</span>' : ''}</div>
+          <p class="text-sm text-slate-500 mt-0.5">${u.flag} ${u.city}, ${u.country} · ${u.lang}</p>
+        </div>
+        <div class="text-right flex-none"><div class="text-3xl font-extrabold grad-text leading-none">${r.total}%</div><div class="text-[11px] text-slate-500">совпадение</div>
+          ${d ? `<span class="delta ${d>0?'up':'down'} mt-1">${d>0?'▲ +':'▼ '}${d}</span>` : ''}</div>
+      </div>
+      <div class="mt-3 h-2 rounded-full bg-slate-100 overflow-hidden"><div class="grow-bar h-2 rounded-full bg-gradient-to-r from-indigo-500 to-fuchsia-500" style="width:${r.total}%"></div></div>
+      <div class="mt-4 grid sm:grid-cols-2 gap-4">
+        <div><div class="text-sm font-semibold text-emerald-700 mb-1">Почему подходит</div>
+          <ul class="space-y-1 text-sm text-slate-600">${li(r.good.slice(0,3),'✓','text-emerald-600 font-bold')}<li class="flex gap-2"><span>💡</span><span>${u.why}</span></li></ul></div>
+        <div><div class="text-sm font-semibold text-amber-700 mb-1">На что обратить внимание</div>
+          <ul class="space-y-1 text-sm text-slate-600">${r.warn.length ? li(r.warn.slice(0,3),'▲','text-amber-500') : '<li class="text-slate-400">Существенных рисков не найдено 🎉</li>'}</ul></div>
+      </div>
+      <div class="mt-4 grid grid-cols-2 sm:grid-cols-5 gap-x-3 gap-y-2">${breakdown(r)}</div>
+      <div class="mt-4 flex flex-wrap items-center gap-2">
+        <span class="chip">💰 ${usd(r.cost)}/год</span><span class="chip">🗣 IELTS ${u.ielts}+</span><span class="chip">📝 SAT ${u.sat ? u.sat + '+' : 'не нужен'}</span><span class="chip">📅 ${fmtDate(dl)}</span>
+        <div class="ml-auto flex gap-2">
+          <button data-action="cmp" data-id="${u.id}" class="cmpbtn ${on?'on':''}">${on?'✓ В сравнении':'＋ Сравнить'}</button>
+          <button data-action="pick" data-id="${u.id}" class="cmpbtn" style="background:#4f46e5;color:#fff;border-color:#4f46e5">🎯 Roadmap</button>
+        </div>
+      </div>
+    </article>`;
+  }).join('');
+}
+
+function renderBanner(){
+  const b = $('#changeBanner'), bl = state.baseline;
+  if(!bl){ b.classList.add('hidden'); return; }
+  const diffs = diffProfile(bl.profile, state.shownProfile), top = state.current.slice(0,3);
+  const moved = top.filter(r => bl.scores[r.u.id] !== undefined && bl.scores[r.u.id] !== r.total).length;
+  const fresh = top.filter(r => !bl.top.includes(r.u.id)).length;
+  if(!diffs.length && !moved && !fresh){ b.classList.add('hidden'); return; }
+  const t1 = top[0], oldId = bl.top[0], oldU = UNIS.find(u => u.id === oldId);
+  b.classList.remove('hidden');
+  b.innerHTML = `<div class="rounded-2xl border border-indigo-200 bg-indigo-50 p-4 flex gap-3 flash">
+    <div class="text-2xl">⚡</div><div class="text-sm">
+      <div class="font-semibold text-indigo-900">Результаты пересчитаны по новым данным</div>
+      ${diffs.length ? `<div class="mt-1 text-indigo-800/80">Изменено: ${diffs.join(' · ')}</div>` : ''}
+      <div class="mt-1 text-indigo-800/80">${oldId !== t1.u.id ? `Новый лидер: <b>${t1.u.short}</b> вместо <b>${oldU ? oldU.short : '—'}</b>` : `Лидер прежний — <b>${t1.u.short}</b>`}${fresh ? ` · новых в топ-3: ${fresh}` : ''}${moved ? ` · изменился рейтинг у ${moved} из 3` : ''}</div>
+    </div></div>`;
+}
+
+function cmpRow(label, vals, mode, fmt){
+  let best = -1;
+  if(mode && vals[0] !== vals[1]) best = mode === 'low' ? (vals[0] < vals[1] ? 0 : 1) : (vals[0] > vals[1] ? 0 : 1);
+  return `<tr class="border-t border-slate-100"><th class="text-left font-medium text-slate-500 py-2.5 pr-3 align-top">${label}</th>` +
+    vals.map((v,i) => `<td class="py-2.5 px-3 align-top ${i===best ? 'bg-emerald-50 text-emerald-800 font-semibold' : ''}">${fmt ? fmt(v,i) : v}${i===best ? ' ✓' : ''}</td>`).join('') + '</tr>';
+}
+function renderCompare(){
+  const box = $('#compareBlock'), top = state.current.slice(0,3);
+  const items = state.cmp.map(id => state.current.find(r => r.u.id === id)).filter(Boolean);
+  const pills = top.map(r => `<button data-action="cmp-pill" data-id="${r.u.id}" class="cmpbtn ${state.cmp.includes(r.u.id)?'on':''}">${r.u.flag} ${r.u.short}</button>`).join('');
+  let body;
+  if(items.length < 2){
+    body = '<div class="mt-4 rounded-xl bg-slate-50 p-4 text-sm text-slate-500">Выберите ещё один вариант, чтобы увидеть сравнение.</div>';
+  } else {
+    const [A, B] = items, p = state.shownProfile, yrs = YEARS[p.grade];
+    const win = A.total >= B.total ? A : B, lose = win === A ? B : A;
+    const cheap = A.cost <= B.cost ? A : B, pres = A.u.prestige >= B.u.prestige ? A : B;
+    let verdict = `<b>${win.u.short}</b> подходит вам лучше (${win.total}% против ${lose.total}%). `;
+    if(A.cost !== B.cost) verdict += `<b>${cheap.u.short}</b> дешевле на ${usd(Math.abs(A.cost - B.cost))}/год`;
+    if(A.u.prestige !== B.u.prestige) verdict += `${A.cost !== B.cost ? ', а ' : ''}<b>${pres.u.short}</b> даёт более сильный академический бренд`;
+    verdict += '.';
+    body = `<div class="mt-4 overflow-x-auto"><table class="w-full text-sm min-w-[460px]">
+      <thead><tr><th class="w-1/3"></th>${items.map(r => `<th class="text-left px-3 pb-2"><div class="font-bold">${r.u.flag} ${r.u.short}</div><div class="text-xs font-normal text-slate-500">${r.u.name}</div></th>`).join('')}</tr></thead><tbody>
+      ${cmpRow('Совпадение с профилем', items.map(r => r.total), 'high', v => v + '%')}
+      ${cmpRow('Шанс поступления', items.map(r => r.chance.k), 'high', (v,i) => items[i].chance.label)}
+      ${cmpRow('Страна, город', items.map(r => `${r.u.country}, ${r.u.city}`))}
+      ${cmpRow('Обучение / год', items.map(r => r.u.tuition), 'low', usd)}
+      ${cmpRow('Проживание / год', items.map(r => r.u.living), 'low', usd)}
+      ${cmpRow('Итого / год', items.map(r => r.cost), 'low', (v,i) => `${usd(v)} <span class="text-xs ${v <= p.budget ? 'text-emerald-600' : 'text-amber-600'}">${v <= p.budget ? '· в бюджете' : '· выше бюджета'}</span>`)}
+      ${cmpRow('Требуемый IELTS', items.map(r => r.u.ielts), 'low', v => v + '+')}
+      ${cmpRow('Требуемый SAT', items.map(r => r.u.sat || 0), 'low', v => v ? v + '+' : 'не требуется')}
+      ${cmpRow('Ориентир аттестата', items.map(r => r.u.gpa), 'low', v => '~' + v + '%')}
+      ${cmpRow('Академический уровень', items.map(r => r.u.prestige), 'high', v => v + '/10')}
+      ${cmpRow('Дедлайн подачи', items.map(r => fmtDate(nextDeadline(r.u, yrs))))}
+      ${cmpRow('Гранты и стипендии', items.map(r => r.u.scholarship))}
+      ${cmpRow('Язык обучения', items.map(r => r.u.lang))}
+      </tbody></table></div>
+      <div class="mt-4 rounded-xl bg-indigo-50 p-3 text-sm text-indigo-900">🤖 <b>AI-вывод:</b> ${verdict}</div>`;
+  }
+  box.innerHTML = `<div class="flex flex-wrap items-center justify-between gap-3"><div class="font-bold">⚖️ Сравнение вариантов</div><div class="flex flex-wrap gap-2">${pills}</div></div>${body}`;
+}
+function updateCmpButtons(){
+  $$('[data-action="cmp"]').forEach(b => { const on = state.cmp.includes(b.dataset.id); b.classList.toggle('on', on); b.textContent = on ? '✓ В сравнении' : '＋ Сравнить'; });
+}
+function toggleCmp(id){
+  const i = state.cmp.indexOf(id);
+  if(i > -1) state.cmp.splice(i,1); else { state.cmp.push(id); if(state.cmp.length > 2) state.cmp.shift(); }
+  updateCmpButtons(); renderCompare();
+}
+function renderResults(){
+  renderSummary(); renderCards(); renderBanner(); renderCompare(); writeQuick();
+  const t = UNIS.find(u => u.id === state.target);
+  $('#toRoadmap').textContent = `Построить Roadmap: ${t.short} →`;
+}
+
+/* ---------- ШАГ 4: ROADMAP ---------- */
+function renderRoadmap(){
+  const top = state.current.slice(0,3), u = UNIS.find(x => x.id === state.target), p = state.shownProfile;
+  const {tasks, deadline} = buildRoadmap(u, p), dm = state.done[u.id] || {};
+  const doneN = tasks.filter(t => dm[t.key]).length, pct = Math.round(doneN/tasks.length*100);
+  const next = tasks.find(t => !dm[t.key]), C = 2*Math.PI*42, res = top.find(r => r.u.id === u.id);
+  const daysToDl = daysBetween(today(), deadline);
+
+  const pills = top.map(r => {
+    const bt = buildRoadmap(r.u, p).tasks, d = state.done[r.u.id] || {}, n = bt.filter(t => d[t.key]).length, act = r.u.id === u.id;
+    return `<button data-action="choose-target" data-id="${r.u.id}" class="cmpbtn ${act ? 'on' : ''}">${r.u.flag} ${r.u.short} · ${n}/${bt.length}</button>`;
+  }).join('');
+
+  let nextCard;
+  if(next){
+    const n = daysBetween(today(), next.date), cat = CAT[next.cat];
+    nextCard = `<div class="rounded-2xl p-6 text-white bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-600 shadow-xl shadow-indigo-500/30">
+      <div class="text-xs uppercase tracking-wider text-white/80">Ваш следующий шаг · ${cat[0]} ${cat[1]}</div>
+      <h3 class="text-2xl font-bold mt-1">${next.title}</h3><p class="mt-2 text-white/90">${next.desc}</p>
+      <div class="mt-5 flex flex-wrap items-center gap-3">
+        <button data-action="mark-next" class="bg-white text-indigo-700 font-bold rounded-xl px-5 py-3 shadow-lg hover:-translate-y-0.5 transition">✓ Отметить прогресс</button>
+        <span class="rounded-full bg-white/20 px-3 py-1 text-sm font-semibold">📅 до ${fmtDate(next.date)} · ${leftText(next.date)}${n <= 14 ? ' · срочно' : ''}</span>
+      </div></div>`;
+  } else {
+    nextCard = `<div class="rounded-2xl p-6 text-white bg-gradient-to-br from-emerald-500 to-teal-600 shadow-xl">
+      <div class="text-3xl">🎉</div><h3 class="text-2xl font-bold mt-1">Все шаги для ${u.short} выполнены!</h3>
+      <p class="mt-2 text-white/90">Пакет готов к подаче. Осталось дождаться ответа университета — а пока можно проработать запасной вариант.</p>
+      <div class="mt-4 flex flex-wrap gap-3">${top.filter(r => r.u.id !== u.id).map(r => `<button data-action="choose-target" data-id="${r.u.id}" class="bg-white text-emerald-700 font-bold rounded-xl px-4 py-2.5">Перейти к ${r.u.short} →</button>`).join('')}</div></div>`;
+  }
+
+  const rows = tasks.map(t => {
+    const done = !!dm[t.key], isNext = next && next.key === t.key, cat = CAT[t.cat], n = daysBetween(today(), t.date);
+    return `<li data-key="${t.key}" class="flex gap-3 p-4 rounded-xl border ${isNext ? 'border-indigo-300 bg-indigo-50/60 ring-2 ring-indigo-100' : 'border-slate-200 bg-white'} ${done ? 'opacity-70' : ''}">
+      <button data-action="toggle-task" data-key="${t.key}" class="check ${done ? 'on' : ''}" aria-label="Отметить шаг"></button>
+      <div class="flex-1 min-w-0">
+        <div class="flex flex-wrap items-center gap-2"><span class="text-xs font-semibold px-2 py-0.5 rounded-full ${cat[2]}">${cat[0]} ${cat[1]}</span>
+          ${isNext ? '<span class="text-xs font-bold px-2 py-0.5 rounded-full bg-indigo-600 text-white">Следующий шаг</span>' : ''}</div>
+        <h4 class="mt-1 font-semibold ${done ? 'line-through text-slate-400' : ''}">${t.title}</h4>
+        <p class="text-sm text-slate-600 mt-0.5">${t.desc}</p>
+      </div>
+      <div class="text-right text-xs flex-none"><div class="font-semibold text-slate-700">${fmtDate(t.date)}</div>
+        <div class="${!done && n <= 14 ? 'text-amber-600 font-semibold' : 'text-slate-400'}">${done ? '✓ готово' : leftText(t.date)}</div></div></li>`;
+  }).join('');
+
+  $('#roadmapRoot').innerHTML = `
+    <div class="flex flex-wrap items-end justify-between gap-3 mb-5">
+      <div><h2 class="text-3xl font-extrabold tracking-tight">Персональный Roadmap</h2>
+        <p class="text-slate-600 mt-2">Цель: <b>${u.flag} ${u.name}</b> · дедлайн ${fmtDate(deadline)} (${leftText(deadline)})</p></div>
+      <div class="flex flex-wrap gap-2 no-print">${pills}</div>
+    </div>
+    <div class="grid lg:grid-cols-3 gap-6 items-start">
+      <div class="lg:col-span-2 space-y-5">${nextCard}<ol class="space-y-3">${rows}</ol></div>
+      <aside class="space-y-5 lg:sticky lg:top-24">
+        <div class="card p-5">
+          <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Прогресс подготовки</div>
+          <div class="mt-3 flex items-center gap-4">
+            <svg viewBox="0 0 100 100" class="w-24 h-24 -rotate-90 flex-none"><circle cx="50" cy="50" r="42" fill="none" stroke="#e2e8f0" stroke-width="9"/>
+              <circle class="ring-anim" cx="50" cy="50" r="42" fill="none" stroke="#10b981" stroke-width="9" stroke-linecap="round" stroke-dasharray="${pct/100*C} ${C}"/></svg>
+            <div><div class="text-3xl font-extrabold">${pct}%</div><div class="text-sm text-slate-500">${doneN} из ${tasks.length} шагов</div></div>
+          </div>
+          <div class="mt-4 h-2 rounded-full bg-slate-100 overflow-hidden"><div class="h-2 rounded-full bg-emerald-500 transition-all duration-700" style="width:${pct}%"></div></div>
+          <div class="mt-4 text-sm text-slate-600">${daysToDl <= 60 ? '⏰ До дедлайна мало времени — действуйте по плану без пауз.' : '👍 Времени достаточно — двигайтесь по шагам, и всё успеете.'}</div>
+        </div>
+        <div class="card p-5 text-sm">
+          <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Условия цели</div>
+          <div class="space-y-1.5 text-slate-600">
+            <div>💰 Стоимость: <b>${usd(u.tuition + u.living)}/год</b></div><div>🗣 IELTS: <b>${u.ielts}+</b> (у вас ${p.ielts || '—'})</div>
+            <div>📝 SAT: <b>${u.sat ? u.sat + '+' : 'не требуется'}</b> (у вас ${p.sat || '—'})</div><div>🎁 ${u.scholarship}</div>
+            ${res ? `<div>🎯 Совпадение с профилем: <b>${res.total}%</b> · ${res.chance.label}</div>` : ''}</div>
+        </div>
+        <div class="card p-5 grid grid-cols-2 gap-2 no-print">
+          <button data-action="copy-plan" class="btn-ghost text-sm !px-3">📋 Копировать</button>
+          <button data-action="print" class="btn-ghost text-sm !px-3">🖨 Печать</button>
+          <button data-action="reset-progress" class="btn-ghost text-sm !px-3">↺ Сбросить</button>
+          <button data-action="edit-results" class="btn-ghost text-sm !px-3">← К вузам</button>
+          <button data-action="restart" class="btn-ghost text-sm !px-3 col-span-2">⟲ Начать заново</button>
+        </div>
+      </aside>
+    </div>`;
+}
+function currentTasks(){ const u = UNIS.find(x => x.id === state.target); return {u, ...buildRoadmap(u, state.shownProfile)}; }
+function markNext(){
+  const {u, tasks} = currentTasks(), dm = state.done[u.id] = state.done[u.id] || {};
+  const next = tasks.find(t => !dm[t.key]); if(!next) return;
+  dm[next.key] = true; save(); renderRoadmap();
+  const left = tasks.filter(t => !dm[t.key]).length;
+  if(left === 0){ confetti(50); toast('🎉 Roadmap выполнен! Пакет документов готов'); }
+  else { confetti(14); toast(`Отлично! «${next.title}» выполнен. Осталось шагов: ${left}`); }
+  const el = $('#roadmapRoot li[data-key="' + next.key + '"]'); if(el) el.classList.add('pop');
+}
+function toggleTask(key){
+  const {u} = currentTasks(), dm = state.done[u.id] = state.done[u.id] || {};
+  dm[key] = !dm[key]; if(!dm[key]) delete dm[key]; save(); renderRoadmap();
+  if(dm[key]) confetti(6);
+}
+function planText(){
+  const {u, tasks, deadline} = currentTasks(), dm = state.done[u.id] || {}, p = state.shownProfile;
+  return `Roadmap поступления — ${u.name} (${u.country})\nПрофиль: ${GRADES[p.grade]}, ${FIELDS[p.field].name}, бюджет ${usd(p.budget)}, IELTS ${p.ielts || '—'}, SAT ${p.sat || '—'}, балл ${p.gpa}%\nДедлайн: ${fmtDate(deadline)}\n\n` +
+    tasks.map((t,i) => `${i+1}. [${dm[t.key] ? 'x' : ' '}] ${t.title} — до ${fmtDate(t.date)}\n    ${t.desc}`).join('\n');
+}
+function copyPlan(){
+  const txt = planText();
+  const fallback = () => { const ta = document.createElement('textarea'); ta.value = txt; ta.style.position = 'fixed'; ta.style.opacity = 0; document.body.appendChild(ta); ta.select(); try{ document.execCommand('copy'); toast('План скопирован в буфер обмена'); }catch(e){ toast('Не удалось скопировать', 'warn'); } ta.remove(); };
+  if(navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(txt).then(() => toast('План скопирован в буфер обмена'), fallback); else fallback();
+}
+
+/* ---------- НАВИГАЦИЯ ---------- */
+const STEP_LABELS = ['Вход','Анкета','Рекомендации','Roadmap'];
+function renderStepper(){
+  $('#stepper').innerHTML = STEP_LABELS.map((l,i) => {
+    const n = i+1, cls = n === state.step ? 'current' : n < state.step ? 'done' : '', locked = n > state.maxStep;
+    return `<button class="stepbtn ${cls}" data-action="goto" data-step="${n}" ${locked ? 'disabled' : ''}><span class="stepnum">${n < state.step ? '✓' : n}</span><span class="hidden lg:inline">${l}</span></button>${n < 4 ? '<span class="w-4 h-px bg-slate-300"></span>' : ''}`;
+  }).join('');
+  $('#stepMobile').textContent = `Шаг ${state.step} из 4 · ${STEP_LABELS[state.step-1]}`;
+  $('#topBar').style.width = (state.step*25) + '%';
+}
+function goStep(n){
+  if(n < 1 || n > 4 || n > state.maxStep) return;
+  state.step = n;
+  if(n === 2){ writeForm(); state.liveTop = null; state.liveScores = null; renderLive(); }
+  if(n === 3) renderResults();
+  if(n === 4) renderRoadmap();
+  $$('.step').forEach(s => s.classList.toggle('active', +s.dataset.step === n));
+  renderStepper(); window.scrollTo({top:0, behavior:'smooth'});
+}
+const dirty = () => JSON.stringify(state.profile) !== JSON.stringify(state.shownProfile);
+function navigate(n){
+  if(n > state.maxStep || n === state.step) return;
+  if(state.step === 2 && n >= 3){ readForm(); if(!state.current || dirty()){ submitProfile(n); return; } }
+  goStep(n);
+}
+
+/* ---------- СОБЫТИЯ ---------- */
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-action]'); if(!el || el.disabled) return;
+  const a = el.dataset.action, id = el.dataset.id;
+  switch(a){
+    case 'start': state.maxStep = Math.max(state.maxStep, 2); goStep(2); break;
+    case 'demo': state.profile = {...PRESETS[0]}; writeForm(); submitProfile(3); break;
+    case 'goto': navigate(+el.dataset.step); break;
+    case 'preset': state.profile = {...PRESETS[+el.dataset.i]}; writeForm(); renderLive(); toast('Загружен демо-профиль'); break;
+    case 'edit': goStep(2); break;
+    case 'cmp': case 'cmp-pill': toggleCmp(id); break;
+    case 'pick': state.target = id; state.maxStep = 4; goStep(4); break;
+    case 'to-roadmap': state.maxStep = 4; goStep(4); break;
+    case 'choose-target': state.target = id; renderRoadmap(); break;
+    case 'mark-next': markNext(); break;
+    case 'toggle-task': toggleTask(el.dataset.key); break;
+    case 'copy-plan': copyPlan(); break;
+    case 'print': window.print(); break;
+    case 'reset-progress': { const {u} = currentTasks(); delete state.done[u.id]; save(); renderRoadmap(); toast('Прогресс сброшен'); break; }
+    case 'edit-results': goStep(3); break;
+    case 'restart': goStep(1); break;
+  }
+});
+$('#profileForm').addEventListener('submit', e => { e.preventDefault(); submitProfile(3); });
+
+/* ---------- ИНИЦИАЛИЗАЦИЯ ---------- */
+function init(){
+  load();
+  const fieldOpts = Object.entries(FIELDS).map(([v,f]) => ({v, t:`${f.icon} ${f.name}`}));
+  const countryOpts = [{v:'any',t:'🌍 Любая страна'}, ...COUNTRIES.map(c => ({v:c, t:`${FLAG[c]} ${c}`}))];
+  const ieltsOpts = [{v:'0',t:'Пока нет результата'}]; for(let x = 5; x <= 9; x += .5) ieltsOpts.push({v:String(x), t:x.toFixed(1)});
+  fillSelect($('#f-grade'), Object.entries(GRADES).map(([v,t]) => ({v,t})));
+  ['#f-field','#q-field'].forEach(s => fillSelect($(s), fieldOpts));
+  ['#f-country','#q-country'].forEach(s => fillSelect($(s), countryOpts));
+  ['#f-ielts','#q-ielts'].forEach(s => fillSelect($(s), ieltsOpts));
+  $('#statU').textContent = UNIS.length; $('#statC').textContent = COUNTRIES.length;
+  writeForm(); writeQuick();
+  ['f-grade','f-field','f-country','f-budget','f-ielts','f-sat','f-gpa'].forEach(id => $('#'+id).addEventListener('input', () => { readForm(); renderLive(); }));
+  ['q-budget','q-country','q-field','q-ielts'].forEach(id => {
+    const el = $('#'+id); el.addEventListener('input', onQuick);
+    el.addEventListener('change', () => { if(state.current){ const t = state.current[0]; toast(`Результаты обновлены · Топ-1: ${t.u.short} (${t.total}%)`); } });
+  });
+  renderStepper(); goStep(1);
+}
+init();
+})();
+</script>
+</body>
+</html>
